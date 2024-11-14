@@ -1142,6 +1142,7 @@ def sdg_op(
         client = openai.OpenAI(base_url=endpoint, api_key=api_key)
 
     taxonomy_base = "main" if repo_branch or (repo_pr and int(repo_pr) > 0) else "empty"
+    taxonomy_base = "empty"  # TODO(gfrasca): remove
 
     print("Generating synthetic dataset for:")
     print()
@@ -1481,14 +1482,14 @@ data_processing_op(max_seq_len={MAX_SEQ_LEN}, max_batch_len={MAX_BATCH_LEN}, sdg
                     mount_path=SDG_CA_CERT_PATH,  # Path where the Secret will be mounted
                 )
                 # Add an env var to the container to specify the path to the CA cert
-                sdg_container.env.append(
-                    kubernetes.client.V1EnvVar(
+                sdg_container.env = [kubernetes.client.V1EnvVar(
                         name=SDG_CA_CERT_ENV_VAR_NAME,
                         value=os.path.join(
                             SDG_CA_CERT_PATH, sdg_serving_model_ca_cert_cm_key
                         ),
                     )
-                )
+                ]
+
                 # Add the volume mount to the container
                 sdg_container.volume_mounts.append(cm_volume_mount)
                 # Add the volume to the Pod spec
@@ -2845,7 +2846,7 @@ def initial_setup(ctx: click.Context) -> None:
             "namespace": namespace,
             "storage_class": storage_class,
             "access_modes": ["ReadWriteMany"],
-            "size": "200Gi",  # Allocate size for a few models and large SDG data sets
+            "size": "400Gi",  # Allocate size for a few models and large SDG data sets
         },
     ]
     for pvc in pvcs:
