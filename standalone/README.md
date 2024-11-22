@@ -522,8 +522,6 @@ Optional keys:
 * `verify_tls`: Whether to verify TLS for the object store endpoint (default: true) - **Optional**
 * `endpoint`: The endpoint of the object store, e.g: https://s3.openshift-storage.svc:443 - **Optional**
 * `region`: The region of the object store - **Optional**
-* `SDG_CA_CERT`: The name of ConfigMap containing the custom CA Cert - **Optional**
-* `SDG_CA_CERT_CM_KEY`: The key of the CA Cert in the ConfigMap - **Optional**
 
 A similar operation can be performed for the evaluation judge model serving service. Currently, the script expects the Judge serving service to be running and accessible from within the cluster. If it is not present, the script will not create this resource.
 
@@ -641,6 +639,8 @@ The list of all mandatory keys:
 * `api_key`: The API key for the model serving endpoint - **Required**
 * `endpoint`: Serving endpoint for evaluation - **Required**
 * `model`: The name of the model to use for SDG - **Required**
+* `SDG_CA_CERT`: The name of ConfigMap containing the custom CA Cert - **Optional**
+* `SDG_CA_CERT_CM_KEY`: The key of the CA Cert in the ConfigMap - **Optional**
 
 ```bash
 ./standalone.py run \
