@@ -29,16 +29,16 @@ This file documents an experimental install of InstructLab on Red Hat OpenShift 
 
 Before running the training and evaluation steps we must complete the following:
 
-* Step 1 - Prepare data and push to object store
-* Step 2 - Setting up Judge & Teacher model
-  * Deploy a teacher model server (Optional)
-  * Deploy teacher model serving details
-  * Deploy a judge model server (Optional)
-  * Deploy judge model serving details
-* Step 3 (Optional) - Setup NFS StorageClass
-* Step 4 - Run InstructLab distributed training
+1. [Prepare data and push to object store](#prepare-data-and-push-to-object-store)
+1. [Setting up Judge & Teacher model](#setting-up-judge--teacher-model)
+    * [Deploy a teacher model server](#deploy-a-teacher-model-server-optional) (Optional)
+    * [Deploy teacher model serving details](#deploy-teacher-model-serving-details)
+    * [Deploy a judge model server](#deploy-a-judge-model-server-optional) (Optional)
+    * [Deploy judge model serving details](#deploy-judge-model-serving-details)
+1. [Setup NFS StorageClass](#optional---setup-nfs-storageclass) (Optional)
+1. [Run InstructLab distributed training](#run-instructlab-distributed-training)
 
-### Step 1 - Prepare data and push to object store
+### Prepare data and push to object store
 
 Create a tarball with the [granite-7b-starter] model and [taxonomy tree] and push them to your object store.
 
@@ -83,7 +83,7 @@ taxonomy/foundational_skills
 [granite-7b-starter]: https://catalog.redhat.com/software/containers/rhelai1/granite-7b-starter/667ebf10abaa082bcf96ea6a
 [taxonomy tree]: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_ai/1.2/html/creating_a_custom_llm_using_rhel_ai/customize_taxonomy_tree
 
-### Step 2 - Setting up Judge & Teacher model
+### Setting up Judge & Teacher model
 
 The Teacher model is used for Synthetic Data Generation (SDG) while the Judge model is used for model evaluation.
 
@@ -244,7 +244,7 @@ running the following command:
 JUDGE_API_KEY=$(oc -n <data-science-project-name/namespace> create token <model-server-service-account-name>)
 ```
 
-### Step 3 (Optional) - Setup NFS StorageClass
+### (Optional) - Setup NFS StorageClass
 
 > [!CAUTION]
 > The image provided here is for test purposes only.
@@ -273,7 +273,7 @@ oc apply -f ./nfs-storage-class.yaml
 
 This will create the required resources in the cluster, including the required StorageClass.
 
-### Step 4 - Run InstructLab distributed training
+### Run InstructLab distributed training
 
 Now we can continue to set up the required resources in our cluster.
 
