@@ -105,6 +105,15 @@ Judge and Teacher respectively.
 Unlike the Judge model we have to deploy the Teacher model manually on RHOAI, this consists of deploying the K8s resources
 using `oc`.
 
+First, upload the Teacher model to s3 if it does not already exist there:
+
+```bash
+ilab model download --repository docker://registry.redhat.io/rhelai1/mixtral-8x7b-instruct-v0-1 --release 1.2
+
+# Default cache location for ilab model download is ~/.cache/instructlab/models
+s3cmd sync path/to/model s3://your-bucket-name/teach-model/
+```
+
 Deploy the following `yaml` called `pre_requisites.yaml` to the `<data-science-project-name/namespace>`
 <details>
 
@@ -154,6 +163,138 @@ roleRef:
 oc -n <data-science-project-name/namespace> apply -f pre_requisites.yaml
 ```
 
+Next we need to create the custom ServingRuntime and InferenceService.
+
+Similar to above, deploy the following `yaml` files to the namespace "`<data-science-project-name/namespace>`"
+
+<details>
+<summary>servingruntime.mixtral.yaml</summary>
+
+```yaml
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  annotations:
+    opendatahub.io/accelerator-name: migrated-gpu
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/template-display-name: Mixtral ServingRuntime
+    opendatahub.io/template-name: vllm-runtime
+    openshift.io/display-name: mixtral
+  labels:
+    opendatahub.io/dashboard: "true"
+  name: mixtral
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+  - args:
+    - --port=8080
+    - --model=/mnt/model
+    - --served-model-name={{.Name}}
+    - --distributed-executor-backend=mp
+    command:
+    - python
+    - -m
+    - vllm.entrypoints.openai.api_server
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    image: quay.io/modh/vllm@sha256:3c56d4c2a5a9565e8b07ba17a6624290c4fb39ac9097b99b946326c09a8b40c8
+    name: kserve-container
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    volumeMounts:
+    - mountPath: /dev/shm
+      name: shm
+    - mountPath: /mnt
+      name: mixtral-serve
+  multiModel: false
+  storageHelper:
+    disabled: true
+  supportedModelFormats:
+  - autoSelect: true
+    name: vLLM
+  volumes:
+  - name: mixtral-serve
+    persistentVolumeClaim:
+      claimName: mixtral-serving-ilab
+  - emptyDir:
+      medium: Memory
+      sizeLimit: 2Gi
+    name: shm
+
+```
+
+</details>
+
+<details>
+
+<summary>inferenceservice.mixtral.yaml</summary>
+
+```yaml
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: mixtral
+    security.opendatahub.io/enable-auth: "true"
+    serving.knative.openshift.io/enablePassthrough: "true"
+    sidecar.istio.io/inject: "true"
+    sidecar.istio.io/rewriteAppHTTPProbers: "true"
+  finalizers:
+  - inferenceservice.finalizers
+  labels:
+    opendatahub.io/dashboard: "true"
+  name: mixtral
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      args:
+      - --dtype=bfloat16
+      - --tensor-parallel-size=4
+      - --enable-lora
+      - --max-lora-rank=64
+      - --lora-dtype=bfloat16
+      - --fully-sharded-loras
+      - --lora-modules
+      - skill-classifier-v3-clm=/mnt/skills
+      - text-classifier-knowledge-v3-clm=/mnt/knowledge
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        limits:
+          cpu: "4"
+          memory: 40Gi
+          nvidia.com/gpu: "4"
+        requests:
+          cpu: "4"
+          memory: 40Gi
+          nvidia.com/gpu: "4"
+      runtime: mixtral
+      storage:
+        key: <s3 data connection name>
+        path: <prefix path to mixtral model in s3>
+    tolerations:
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: Exists
+```
+
+</details>
+
+```bash
+oc -n <data-science-project-name/namespace> apply -f servingruntime.mixtral.yaml
+oc -n <data-science-project-name/namespace> apply -f inferenceservice.mixtral.yaml
+```
+
 #### Deploy teacher model serving details
 
 Create a secret containing the Teacher model serving details
@@ -175,6 +316,14 @@ stringData:
 
 > Note: If using a custom CA certificate you must provide the relevant data in a ConfigMap. The config map name and
 > key are then provided as a parameter to the standalone.py script as well as in the `judge-serving-details` secret above.
+
+If you deployed the Teacher server model using the optional instructions above then you can retrieve `api_key` by
+running the following command:
+
+```bash
+SDG_API_KEY=$(oc -n <data-science-project-name/namespace> create token <model-server-service-account-name>)
+```
+
 
 #### Deploy a judge model server (optional)
 
