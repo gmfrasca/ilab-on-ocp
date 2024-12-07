@@ -11,9 +11,11 @@ from kfp.kubernetes import (
     mount_pvc,
     set_image_pull_policy,
     use_config_map_as_env,
+    use_config_map_as_volume,
     use_secret_as_env,
     use_secret_as_volume,
 )
+import os
 
 TEACHER_CONFIG_MAP = "teacher-server"
 TEACHER_SECRET = "teacher-server"
@@ -25,6 +27,40 @@ IMPORTER_PIPELINE_FILE_NAME = "importer-pipeline.yaml"
 STANDALONE_TEMPLATE_FILE_NAME = "standalone.tpl"
 GENERATED_STANDALONE_FILE_NAME = "standalone.py"
 DEFAULT_REPO_URL = "https://github.com/instructlab/taxonomy.git"
+
+# Model Serving SSL connection
+# TODO(gfrasca): Parameterize
+SDG_CA_CERT_CM = "gfrasca-cert-copy"
+SDG_CA_CERT_ENV_VAR_NAME = "SDG_CA_CERT_PATH"
+SDG_CA_CERT_PATH = "/tmp/cert"
+# SDG_CA_CERT_CM_KEY = "ca-bundle.crt"
+SDG_CA_CERT_CM_KEY = "ca.crt"
+JUDGE_CA_CERT_CM = "gfrasca-cert-copy"
+JUDGE_CA_CERT_ENV_VAR_NAME = "JUDGE_CA_CERT_PATH"
+JUDGE_CA_CERT_PATH = "/tmp/cert"
+# JUDGE_CA_CERT_CM_KEY = "ca-bundle.crt"
+JUDGE_CA_CERT_CM_KEY = "ca.crt"
+
+
+# # eval args
+# FEW_SHOTS = 5
+# # BATCH_SIZE can also be an int, for example "8" is converted to an int in eval/final
+# BATCH_SIZE = "auto"
+# MAX_WORKERS = "auto"
+# MERGE_SYSTEM_USER_MESSAGE = False
+
+# # training args
+# NUM_EPOCHS_PHASE_1 = 2
+# NUM_EPOCHS_PHASE_2 = 2
+# EFFECTIVE_BATCH_SIZE_PHASE_1 = 3840
+# EFFECTIVE_BATCH_SIZE_PHASE_2 = 3840
+# LEARNING_RATE_PHASE_1 = 1e-4
+# LEARNING_RATE_PHASE_2 = 1e-4
+# NUM_WARMUP_STEPS_PHASE_1 = 100
+# NUM_WARMUP_STEPS_PHASE_2 = 100
+# SAVE_SAMPLES = 0
+# MAX_BATCH_LEN = 20000
+# SEED = 42
 
 
 def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
@@ -87,14 +123,14 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         sdg_repo_branch: Optional[str] = None,
         sdg_repo_pr: Optional[
             int
-        ] = None,  # FIXME: https://issues.redhat.com/browse/RHOAIRFE-467
+        ] = 0,  # FIXME: https://issues.redhat.com/browse/RHOAIRFE-467
         sdg_base_model: str = "s3://<BUCKET>/<PATH_TO_MODEL>",
         sdg_scale_factor: int = 30,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L125
         sdg_pipeline: str = "full",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L122
         sdg_max_batch_len: int = 5000,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L334
-        sdg_sample_size: float = 1.0,  # FIXME: Not present in default config. Not configurable upstream at this point, capability added via https://github.com/instructlab/sdg/pull/432
+        sdg_sample_size: float = 0.0002,  # FIXME: Not present in default config. Not configurable upstream at this point, capability added via https://github.com/instructlab/sdg/pull/432
         # Training phase
-        train_nproc_per_node: int = 2,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
+        train_nproc_per_node: int = 1,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
         train_nnodes: int = 2,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
         train_num_epochs_phase_1: int = 7,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L364
         train_num_epochs_phase_2: int = 10,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L377
@@ -116,7 +152,7 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         final_eval_batch_size: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L52
         final_eval_merge_system_user_message: bool = False,  # https://github.com/instructlab/instructlab/blob/v0.21.2/src/instructlab/model/evaluate.py#L474
         # Other options
-        k8s_storage_class_name: str = "standard",  # FIXME: https://github.com/kubeflow/pipelines/issues/11396, https://issues.redhat.com/browse/RHOAIRFE-470
+        k8s_storage_class_name: str = "nfs-csi",  # FIXME: https://github.com/kubeflow/pipelines/issues/11396, https://issues.redhat.com/browse/RHOAIRFE-470
     ):
         """InstructLab pipeline
 
@@ -187,6 +223,11 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
             sdg_task, TEACHER_CONFIG_MAP, dict(endpoint="endpoint", model="model")
         )
         use_secret_as_env(sdg_task, TEACHER_SECRET, {"api_key": "api_key"})
+        if SDG_CA_CERT_CM:
+            use_config_map_as_volume(sdg_task, SDG_CA_CERT_CM, mount_path=SDG_CA_CERT_PATH)
+            sdg_task.set_env_variable(SDG_CA_CERT_ENV_VAR_NAME, os.path.join(SDG_CA_CERT_PATH, SDG_CA_CERT_CM_KEY))
+            # use_config_map_as_env(sdg_task, SDG_CA_CERT_CM, {SDG_CA_CERT_CM_KEY: SDG_CA_CERT_ENV_VAR_NAME})
+        
         sdg_task.after(git_clone_task)
         mount_pvc(
             task=sdg_task,
@@ -348,6 +389,10 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
             dict(endpoint="JUDGE_ENDPOINT", model="JUDGE_NAME"),
         )
         use_secret_as_env(run_mt_bench_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
+        if JUDGE_CA_CERT_CM:
+            # use_config_map_as_env(run_mt_bench_task, JUDGE_CA_CERT_CM, {JUDGE_CA_CERT_CM_KEY: JUDGE_CA_CERT_ENV_VAR_NAME})
+            use_config_map_as_volume(run_mt_bench_task, JUDGE_CA_CERT_CM, mount_path=JUDGE_CA_CERT_PATH)
+            run_mt_bench_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME,  os.path.join(JUDGE_CA_CERT_PATH, JUDGE_CA_CERT_CM_KEY))
 
         # uncomment if updating image with same tag
         # set_image_pull_policy(run_mt_bench_task, "Always")
@@ -390,6 +435,11 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         # set_image_pull_policy(final_eval_task, "Always")
 
         use_secret_as_env(final_eval_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
+        if JUDGE_CA_CERT_CM:
+            # use_config_map_as_env(final_eval_task, JUDGE_CA_CERT_CM, {JUDGE_CA_CERT_CM_KEY: JUDGE_CA_CERT_ENV_VAR_NAME})
+            use_config_map_as_volume(final_eval_task, JUDGE_CA_CERT_CM, mount_path=JUDGE_CA_CERT_PATH)
+            final_eval_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME, os.path.join(JUDGE_CA_CERT_PATH, JUDGE_CA_CERT_CM_KEY))
+
 
         final_eval_task.after(run_mt_bench_task)
         final_eval_task.set_accelerator_type("nvidia.com/gpu")
