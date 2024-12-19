@@ -29,17 +29,16 @@ GENERATED_STANDALONE_FILE_NAME = "standalone.py"
 DEFAULT_REPO_URL = "https://github.com/instructlab/taxonomy.git"
 
 # Model Serving SSL connection
-# TODO(gfrasca): Parameterize
-SDG_CA_CERT_CM = "gfrasca-cert-copy"
+SDG_CA_CERT_CM = ""
+SDG_CA_CERT_CM_KEY = "ca.crt"
 SDG_CA_CERT_ENV_VAR_NAME = "SDG_CA_CERT_PATH"
 SDG_CA_CERT_PATH = "/tmp/cert"
-# SDG_CA_CERT_CM_KEY = "ca-bundle.crt"
-SDG_CA_CERT_CM_KEY = "ca.crt"
-JUDGE_CA_CERT_CM = "gfrasca-cert-copy"
+
+JUDGE_CA_CERT_CM = ""
+JUDGE_CA_CERT_CM_KEY = "ca.crt"
 JUDGE_CA_CERT_ENV_VAR_NAME = "JUDGE_CA_CERT_PATH"
 JUDGE_CA_CERT_PATH = "/tmp/cert"
-# JUDGE_CA_CERT_CM_KEY = "ca-bundle.crt"
-JUDGE_CA_CERT_CM_KEY = "ca.crt"
+
 
 
 # # eval args
@@ -129,6 +128,9 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         sdg_pipeline: str = "full",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L122
         sdg_max_batch_len: int = 5000,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L334
         sdg_sample_size: float = 0.0002,  # FIXME: Not present in default config. Not configurable upstream at this point, capability added via https://github.com/instructlab/sdg/pull/432
+        sdg_ca_cert_configmap: str = SDG_CA_CERT_CM,
+        sdg_ca_cert_configmap_key: str = SDG_CA_CERT_CM_KEY,
+
         # Training phase
         train_nproc_per_node: int = 1,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
         train_nnodes: int = 2,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
@@ -146,11 +148,16 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         # MT Bench
         mt_bench_max_workers: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L74
         mt_bench_merge_system_user_message: bool = False,  # https://github.com/instructlab/instructlab/blob/v0.21.2/src/instructlab/model/evaluate.py#L474
+        mt_bench_ca_cert_configmap: str = JUDGE_CA_CERT_CM,
+        mt_bench_ca_cert_configmap_key: str = JUDGE_CA_CERT_CM_KEY,
+
         # Final evaluation
         final_eval_max_workers: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L74
         final_eval_few_shots: int = 5,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L56
         final_eval_batch_size: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L52
         final_eval_merge_system_user_message: bool = False,  # https://github.com/instructlab/instructlab/blob/v0.21.2/src/instructlab/model/evaluate.py#L474
+        final_eval_ca_cert_configmap: str = JUDGE_CA_CERT_CM,
+        final_eval_ca_cert_configmap_key: str = JUDGE_CA_CERT_CM_KEY,
         # Other options
         k8s_storage_class_name: str = "nfs-csi",  # FIXME: https://github.com/kubeflow/pipelines/issues/11396, https://issues.redhat.com/browse/RHOAIRFE-470
     ):
@@ -165,6 +172,8 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
             sdg_pipeline: SDG parameter. Data generation pipeline to use. Available: 'simple', 'full', or a valid path to a directory of pipeline workflow YAML files. Note that 'full' requires a larger teacher model, Mixtral-8x7b.
             sdg_max_batch_len: SDG parameter. Maximum tokens per gpu for each batch that will be handled in a single step.
             sdg_sample_size: SDG parameter. Represents the sdg skills recipe sampling size as percentage in decimal form.
+            sdg_ca_cert_configmap: SDG parameter.  Name of the configmap which contains CA Cert used for TLS verification against Evaluation model. Will not use TLS if left blank.
+            sdg_ca_cert_configmap_key: SDG parameter.  Key within CA configmap which contains CA Cert used for TLS verification against Evaluation model.
 
             train_nproc_per_node: Training parameter. Number of GPUs per each node/worker to use for training.
             train_nnodes: Training parameter. Number of nodes/workers to train on.
@@ -182,11 +191,15 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
 
             mt_bench_max_workers: MT Bench parameter. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.
             mt_bench_merge_system_user_message: MT Bench parameter. Boolean indicating whether to merge system and user messages (required for Mistral based judges)
+            mt_bench_ca_cert_configmap: MT Bench parameter.  Name of the configmap which contains CA Cert used for TLS verification against Evaluation model. Will not use TLS if left blank.
+            mt_bench_ca_cert_configmap_key: MT Bench parameter.  Key within CA configmap which contains CA Cert used for TLS verification against Evaluation model.
 
             final_eval_max_workers: Final model evaluation parameter for MT Bench Branch. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.
             final_eval_few_shots: Final model evaluation parameter for MMLU. Number of question-answer pairs provided in the context preceding the question used for evaluation.
             final_eval_batch_size: Final model evaluation parameter for MMLU. Batch size for evaluation. Valid values are a positive integer or 'auto' to select the largest batch size that will fit in memory.
             final_eval_merge_system_user_message: Final model evaluation parameter for MT Bench Branch. Boolean indicating whether to merge system and user messages (required for Mistral based judges)
+            final_eval_ca_cert_configmap: Final model evaluation parameter.  Name of the configmap which contains CA Cert used for TLS verification against Evaluation model. Will not use TLS if left blank.
+            final_eval_ca_cert_configmap_key: Final model evaluation parameter.  Key within CA configmap which contains CA Cert used for TLS verification against Evaluation model.
 
             k8s_storage_class_name: A Kubernetes StorageClass name for persistent volumes. Selected StorageClass must support RWX PersistentVolumes.
         """
@@ -223,10 +236,9 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
             sdg_task, TEACHER_CONFIG_MAP, dict(endpoint="endpoint", model="model")
         )
         use_secret_as_env(sdg_task, TEACHER_SECRET, {"api_key": "api_key"})
-        if SDG_CA_CERT_CM:
-            use_config_map_as_volume(sdg_task, SDG_CA_CERT_CM, mount_path=SDG_CA_CERT_PATH)
-            sdg_task.set_env_variable(SDG_CA_CERT_ENV_VAR_NAME, os.path.join(SDG_CA_CERT_PATH, SDG_CA_CERT_CM_KEY))
-            # use_config_map_as_env(sdg_task, SDG_CA_CERT_CM, {SDG_CA_CERT_CM_KEY: SDG_CA_CERT_ENV_VAR_NAME})
+        if sdg_ca_cert_configmap != "":
+            use_config_map_as_volume(sdg_task, str(sdg_ca_cert_configmap), mount_path=SDG_CA_CERT_PATH)
+            sdg_task.set_env_variable(SDG_CA_CERT_ENV_VAR_NAME, os.path.join(SDG_CA_CERT_PATH, str(sdg_ca_cert_configmap_key)))
         
         sdg_task.after(git_clone_task)
         mount_pvc(
@@ -389,10 +401,9 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
             dict(endpoint="JUDGE_ENDPOINT", model="JUDGE_NAME"),
         )
         use_secret_as_env(run_mt_bench_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
-        if JUDGE_CA_CERT_CM:
-            # use_config_map_as_env(run_mt_bench_task, JUDGE_CA_CERT_CM, {JUDGE_CA_CERT_CM_KEY: JUDGE_CA_CERT_ENV_VAR_NAME})
-            use_config_map_as_volume(run_mt_bench_task, JUDGE_CA_CERT_CM, mount_path=JUDGE_CA_CERT_PATH)
-            run_mt_bench_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME,  os.path.join(JUDGE_CA_CERT_PATH, JUDGE_CA_CERT_CM_KEY))
+        if mt_bench_ca_cert_configmap != "":
+            use_config_map_as_volume(run_mt_bench_task, str(mt_bench_ca_cert_configmap), mount_path=JUDGE_CA_CERT_PATH)
+            run_mt_bench_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME,  os.path.join(JUDGE_CA_CERT_PATH, str(mt_bench_ca_cert_configmap_key)))
 
         # uncomment if updating image with same tag
         # set_image_pull_policy(run_mt_bench_task, "Always")
@@ -435,10 +446,9 @@ def ilab_pipeline_wrapper(mock: List[Literal[MOCKED_STAGES]]):
         # set_image_pull_policy(final_eval_task, "Always")
 
         use_secret_as_env(final_eval_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
-        if JUDGE_CA_CERT_CM:
-            # use_config_map_as_env(final_eval_task, JUDGE_CA_CERT_CM, {JUDGE_CA_CERT_CM_KEY: JUDGE_CA_CERT_ENV_VAR_NAME})
-            use_config_map_as_volume(final_eval_task, JUDGE_CA_CERT_CM, mount_path=JUDGE_CA_CERT_PATH)
-            final_eval_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME, os.path.join(JUDGE_CA_CERT_PATH, JUDGE_CA_CERT_CM_KEY))
+        if final_eval_ca_cert_configmap != "":
+            use_config_map_as_volume(final_eval_task, str(final_eval_ca_cert_configmap), mount_path=JUDGE_CA_CERT_PATH)
+            final_eval_task.set_env_variable(JUDGE_CA_CERT_ENV_VAR_NAME, os.path.join(JUDGE_CA_CERT_PATH, str(final_eval_ca_cert_configmap_key)))
 
 
         final_eval_task.after(run_mt_bench_task)
