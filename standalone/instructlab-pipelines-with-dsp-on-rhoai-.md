@@ -6,21 +6,24 @@ This file provides step-by-step instructions for setting up and using the Data S
 
 * An OpenShift cluster with
   * Sufficient GPUs available for training.
-    * 4x NVIDIA A100 GPUs
-  * Red Hat - Authorino installed
-  * Red Hat Openshift Serverless installed
-  * Red Hat OpenShift Service Mesh v2 (v3 is not compatible with RHOAI)
-  * Red Hat OpenShift AI
+    * At a minimum, a node with at least 4 GPUs such as an NVIDIA A100s
+  * The following Operators already installed:
+    * Red Hat - Authorino
+    * Red Hat Openshift Serverless
+    * Red Hat OpenShift Service Mesh v2 
+      * NOTE: v3 is not compatible with RHOAI
+    * Red Hat Openshift AI
 
 * Teacher and Judge models with a serving endpoint
     * If already setup you will need the endpoint, api key, and any CA bundles if needed for each model
     * If setting up your own using these instructions, you will need additional multi-node A100s or L40s for each model
-* SDG taxonomy tree to utilize for Synthetic Data Generation (SDG), see instructions for creating a [taxonomy tree]
+* SDG taxonomy tree to utilize for Synthetic Data Generation (SDG)
+  * see instructions for creating a [taxonomy tree]
   on how to set up your own taxonomy tree.
 * An OpenShift AI installation, with the Training Operator and KServe components set to `Managed`
   * A data science project/namespace, in this document this will be referred to as `<data-science-project-name/namespace>`
 * A [StorageClass] that supports dynamic provisioning with [ReadWriteMany] access mode (see step 3 below).
-* An AWS S3 object store. Alternative object storage solutions that are S3-compliant such as Ceph, Nooba and MinIO are also compatible.
+* An S3 object store such as AWS, or an alternative object storage solution that is S3-compliant such as Ceph, Nooba and MinIO.
 * A locally installed `oc` command line tool to create and manage kubernetes resources.
 * Ilab CLI (or Skopeo/Oras/etc.) for model downloads
 
@@ -30,7 +33,7 @@ This file provides step-by-step instructions for setting up and using the Data S
 
 ## Steps
 
-Before running the training and evaluation steps we must complete the following:
+Before running the training and evaluation steps we must complete the following steps:
 
 1. [Prepare data and push to object store](#prepare-data-and-push-to-object-store)
 1. [Setting up Judge & Teacher model](#setting-up-judge--teacher-model)
@@ -132,15 +135,15 @@ s3cmd sync path/to/model s3://your-bucket-name/judge-model/
 ```
 
 Navigate to the OpenShift AI dashboard
-* Choose Data Science Projects from the left hand menu and choose your data science project/namespace.
-* Choose the data connections tab, and click on the Add data connection button. Enter the details of your S3 bucket (object store) and click Add data connection.
+* Choose **Data Science Projects** from the left hand menu and choose your data science project/namespace.
+* Select the **Connections** tab, and then click on the **Add connection** button. Enter the details of your S3 bucket (object store) and click Add data connection.
 
 > [!NOTE]
 > Note: Before following the next step - Ensure that the `CapabilityServiceMeshAuthorization` status is `True` in `DSCinitialization` resource.
 
 Create a model server instance
-* Navigate to Data Science Projects and then the Models tab
-* On the right hand side select ‘Deploy model’ under Single-model serving platform
+* Navigate back to **Data Science Projects** page, select your namespace again, and then select the **Models** tab
+* On the right hand side select **Deploy model** under Single-model serving platform
 * Under Serving runtime choose the serving runtime `vLLM Serving Runtime for Kserve`.
 * Check the `Make deployed models available through an external route` box.
 * Under token authentication check the `Require token authentication` box, write the name of the service account that we have created above.
@@ -170,7 +173,7 @@ stringData:
 
 > [!NOTE]
 > Note: If using a custom CA certificate you must provide the relevant data in a ConfigMap. The config map name and key
-> are then provided as a parameter to the standalone.py script as well as in the `judge-serving-details` secret above.
+> are then provided as a parameter to the pipeline as well as in the `judge-serving-details` secret above.
 
 If you deployed the Judge server model using the optional instructions above then you can retrieve `JUDGE_API_KEY` by
 running the following command:
@@ -187,7 +190,7 @@ using `oc`.
 First, upload the Teacher model to s3 if it does not already exist there:
 
 ```bash
-# You can also use Oras or Skopeo cli tools to download the model
+# You can also use ORAS or Skopeo cli tools to download the model
 # If using other tools besides ilab, ensure that filenames are mapped
 # appropriately
 ilab model download --repository docker://registry.redhat.io/rhelai1/mixtral-8x7b-instruct-v0-1 --release 1.2
@@ -451,7 +454,7 @@ stringData:
 
 > [!NOTE]
 > Note: If using a custom CA certificate you must provide the relevant data in a ConfigMap. The config map name and
-> key are then provided as a parameter to the standalone.py script as well as in the `teacher-model-details-k8s-secret` secret above.
+> key are then provided as a parameter to the pipeline as well as in the `teacher-model-details-k8s-secret` secret above.
 
 If you deployed the Teacher server model using the optional instructions above then you can retrieve `api_key` by
 running the following command:
@@ -552,7 +555,7 @@ Apply the yaml file to the cluster
 
 Create a ServiceAccount, ClusterRole and ClusterRoleBinding
 
-Provide access to the service account running the standalone.py script for accessing and manipulating related resources.
+Provide access to the service account running the pipeline for accessing and manipulating related resources.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
