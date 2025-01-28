@@ -35,7 +35,7 @@ This file provides step-by-step instructions for setting up and using the Data S
 
 Before running the training and evaluation steps we must complete the following steps:
 
-1. [Prepare data and push to object store](#prepare-data-and-push-to-object-store)
+1. [Prepare base model and push to object store](#prepare-base-model-and-push-to-object-store)
 1. [Setting up Judge & Teacher model](#setting-up-judge--teacher-model)
     * [Deploy a judge model server](#deploy-a-judge-model-server-optional) (Optional)
     * [Deploy judge model serving details](#deploy-judge-model-serving-details)
@@ -44,7 +44,7 @@ Before running the training and evaluation steps we must complete the following 
 1. [Setup NFS StorageClass](#optional---setup-nfs-storageclass) (Optional)
 1. [Set Up Data Science Pipelines Server and Run InstructLab Pipeline](#set-up-data-science-pipelines-server-and-run-instructLab-pipeline)
 
-### Prepare data and push to object store
+### Prepare base model and push to object store
 
 You will need a base model to train the ilab pipeline on, so to begin, upload the [granite-7b-starter] model to your object store.
 
@@ -140,11 +140,11 @@ metadata:
   namespace: <data-science-project-name/namespace>
 type: Opaque
 stringData:
-  JUDGE_NAME:               # Name of the judge model or deployment
-  JUDGE_ENDPOINT:           # Model serving endpoint, Sample format - `https://<deployed-model-server-endpoint>/v1`
-  JUDGE_API_KEY:            # Deployed model-server auth token
-  JUDGE_CA_CERT:            # Configmap containing CA cert for the judge model (optional - required if using custom CA cert), Example - `kube-root-ca.crt`
-  JUDGE_CA_CERT_CM_KEY:     # Name of key inside configmap (optional - required if using custom CA cert), Example - `ca.crt`
+  JUDGE_NAME: <judge-model-name>                              # Name of the judge model or deployment
+  JUDGE_ENDPOINT: <judge-model-endpoint>                      # Model serving endpoint, Sample format - `https://<deployed-model-server-endpoint>/v1`
+   JUDGE_API_KEY: <judge-model-api-key>                       # Deployed model-server auth token
+  JUDGE_CA_CERT: <judge-model-ca-cert-config-map-name>        # Configmap containing CA cert for the judge model (optional - required if using custom CA cert), Example - `kube-root-ca.crt`
+  JUDGE_CA_CERT_CM_KEY: <judge-model-ca-cert-config-map-key>  # Name of key inside configmap (optional - required if using custom CA cert), Example - `ca.crt`
 ```
 
 > [!NOTE]
@@ -251,10 +251,10 @@ stringData:
       "type": "s3",
       "access_key_id": "your_accesskey",
       "secret_access_key": "your_secretkey",
-      "endpoint_url": "https://s3-us-east.amazonaws.com",
+      "endpoint_url": "https://s3-us-east-2.amazonaws.com",
       "bucket": "mybucket",
       "default_bucket": "mybucket",
-      "region": "us-east"
+      "region": "us-east-2"
     }
 kind: Secret
 metadata:
@@ -421,11 +421,11 @@ metadata:
   namespace: <data-science-project-name/namespace>
 type: Opaque
 stringData:
-  api_key:              # Deployed model-server auth token
-  endpoint:             # Model serving endpoint, Sample format - `https://<deployed-model-server-endpoint>/v1`
-  model: mixtral        # Name of the teacher model or deployment
-  SDG_CA_CERT:          # Configmap containing CA cert for the teacher model (optional - required if using custom CA cert), Example - `kube-root-ca.crt`
-  SDG_CA_CERT_CM_KEY:   # Name of key inside configmap (optional - required if using custom CA cert), Example - `ca.crt`
+  api_key: <teacher-model-api-key>                       # Deployed model-server auth token
+  endpoint: <teacher-model-endpoint>                     # Model serving endpoint, Sample format - `https://<deployed-model-server-endpoint>/v1`
+  model: <teacher-model-name>                            # Name of the teacher model or deployment
+  SDG_CA_CERT: <teacher-model-ca-config-map-name>        # Configmap containing CA cert for the teacher model (optional - required if using custom CA cert), Example - `kube-root-ca.crt`
+  SDG_CA_CERT_CM_KEY: <teacher-model-ca-config-map-key>  # Name of key inside configmap (optional - required if using custom CA cert), Example - `ca.crt`
 ```
 
 > [!NOTE]
@@ -496,18 +496,10 @@ Now we can continue to set up the required resources in our cluster.
 
 The following resources will be created:
 
-1. ConfigMap
-2. Secret
-3. ClusterRole
-4. ClusterRoleBinding
-5. Pod
-
-Create a configMap that contains the [standalone.py script](standalone.py)
-
-```bash
-$ curl -OL https://raw.githubusercontent.com/red-hat-data-services/ilab-on-ocp/refs/heads/rhoai-2.16/standalone/standalone.py
-$ oc create configmap -n <data-science-project-name/namespace> standalone-script --from-file ./standalone.py
-```
+1. Secret
+1. ClusterRole
+1. ClusterRoleBinding
+1. Pod
 
 Create a secret resource that contains the credentials for your Object Storage (AWS S3 Bucket)
 
@@ -518,13 +510,13 @@ metadata:
   name: sdg-object-store-credentials
 type: Opaque
 stringData:
-  bucket:                     # The object store bucket containing SDG+Model+Taxonomy data. (Name of S3 bucket)
-  access_key:                 # The object store access key (AWS Access key ID)
-  secret_key:                 # The object store secret key (AWS Secret Access Key)
-  data_key:                   # The name of the tarball that contains SDG data.
-  endpoint:                   # The object store endpoint
-  region:                     # The region for the object store.
-  verify_tls:                 # Verify TLS for the object store.
+  bucket: <s3-bucket-name>                    # The object store bucket containing SDG+Model+Taxonomy data. (Name of S3 bucket)
+  access_key: <s3-access-key>                 # The object store access key (AWS Access key ID)
+  secret_key: <s3-secret-key>                 # The object store secret key (AWS Secret Access Key)
+  data_key: <s3-path-to-teacher-model-files>  # The name of the tarball that contains SDG data.
+  endpoint: <s3-endpoint>                     # The object store endpoint
+  region: <s3-region>                         # The region for the object store.
+  verify_tls: true                            # Verify TLS for the object store.
 ```
 
 Apply the yaml file to the cluster
@@ -573,7 +565,7 @@ These are the required [RBAC configuration] which we are applying on the Service
 
 From within the RHOAI dashboard, navigate to the "Data Science Pipelines" page and click "Configure pipeline server". This will present you with a form where you can upload the credentials for the S3 bucket you created in the previous step.
 
-<p align="center"><img src="assets/images/configure_pipeline_server.png" width=50%\></p>
+<p align="center"><img src="assets/images/configure_pipeline_server.png" width=50%></p>
 
 ### Run the Pipeline
 
