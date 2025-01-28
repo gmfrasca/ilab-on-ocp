@@ -592,6 +592,7 @@ Once the pipeline is uploaded we will be able to select **"Create run"** from th
 |`sdg_scale_factor` |SDG parameter. The total number of instructions to be generated|
 |`sdg_pipeline` |SDG parameter. Data generation pipeline to use. Available: 'simple', 'full', or a valid path to a directory of pipeline workflow YAML files. Note that 'full' requires a larger teacher model, Mixtral-8x7b.|
 |`sdg_max_batch_len` |SDG parameter. Maximum tokens per gpu for each batch that will be handled in a single step.|
+|`sdg_sample_size` | SDG parameter. Sampling size used for Synthetic Data Generation |
 |`train_nproc_per_node` |Training parameter. Number of GPUs per each node/worker to use for training.|
 |`train_nnodes` |Training parameter. Number of nodes/workers to train on.|
 |`train_num_epochs_phase_1` |Training parameter for in Phase 1. Number of epochs to run training.|
@@ -613,5 +614,82 @@ Once the pipeline is uploaded we will be able to select **"Create run"** from th
 |`final_eval_merge_system_user_message` |Final model evaluation parameter for MT Bench Branch. Boolean indicating whether to merge system and user messages (required for Mistral based judges)|
 |`k8s_storage_class_name` |A Kubernetes StorageClass name for persistent volumes. Selected StorageClass must support RWX PersistentVolumes.|
 
+##### Suggested Parameters: Full Pipeline
+
+To run the ilab Pipeline at fall capabilities, we suggest using these values:
+
+| Parameter | Suggested Value |
+|---------- | ---------- |
+|`sdg_repo_url` | https://github.com/instructlab/taxonomy.git |
+|`sdg_repo_branch` | "" |
+|`sdg_repo_pr` | 0 |
+|`sdg_base_model` | s3://<BUCKET>/<PATH_TO_MODEL> |
+|`sdg_scale_factor` | 30 |
+|`sdg_pipeline` | "full" |
+|`sdg_max_batch_len` | 5000 |
+|`sdg_sample_size` | 1.0 |
+|`train_nproc_per_node` | 2 |
+|`train_nnodes` | 2 |
+|`train_num_epochs_phase_1` | 7 |
+|`train_num_epochs_phase_2` | 10 |
+|`train_effective_batch_size_phase_1` | 128 |
+|`train_effective_batch_size_phase_2` | 3840 |
+|`train_learning_rate_phase_1` | 2e-05 |
+|`train_learning_rate_phase_2` | 6e-06 |
+|`train_num_warmup_steps_phase_1` | 1000 |
+|`train_num_warmup_steps_phase_2` | 1000 |
+|`train_save_samples` | 250000 |
+|`train_max_batch_len` | 5000 |
+|`train_seed` | 42 |
+|`mt_bench_max_workers` | "auto" |
+|`mt_bench_merge_system_user_message` | False |
+|`final_eval_max_workers` | "auto" |
+|`final_eval_few_shots` | 5 |
+|`final_eval_batch_size` | "auto" |
+|`final_eval_merge_system_user_message` | False |
+|`k8s_storage_class_name` | standard |
+
+Note that this will take a very long time, on the scale of double-digit hours of runtime
+
+##### Suggested Parameters: Development
+
+Running the ilab pipeline at fall capabilities takes a very long time, and with a good amount of resource consumption.
+To create a e2e run that completes much quicker (at the expense of output quality), and with fewer resources (namely, GPU nodes) we suggest using these values instead:
+
+| Parameter | Suggested Value |
+|---------- | ---------- |
+|`sdg_repo_url` | https://github.com/instructlab/taxonomy.git |
+|`sdg_repo_branch` | "" |
+|`sdg_repo_pr` | 0 |
+|`sdg_base_model` | s3://<BUCKET>/<PATH_TO_MODEL> |
+|`sdg_scale_factor` | 30 |
+|`sdg_pipeline` | "simple" |
+|`sdg_max_batch_len` | 5000 |
+|`sdg_sample_size` | **0.0002** |
+|`train_nproc_per_node` | **1** |
+|`train_nnodes` | **1** |
+|`train_num_epochs_phase_1` | **2** |
+|`train_num_epochs_phase_2` | **2** |
+|`train_effective_batch_size_phase_1` | **3840** |
+|`train_effective_batch_size_phase_2` | 3840 |
+|`train_learning_rate_phase_1` | **.0001** |
+|`train_learning_rate_phase_2` | **.0001** |
+|`train_num_warmup_steps_phase_1` | **800** |
+|`train_num_warmup_steps_phase_2` | **800** |
+|`train_save_samples` | **0** |
+|`train_max_batch_len` | **20000** |
+|`train_seed` | 42 |
+|`mt_bench_max_workers` | "auto" |
+|`mt_bench_merge_system_user_message` | False |
+|`final_eval_max_workers` | "auto" |
+|`final_eval_few_shots` | 5 |
+|`final_eval_batch_size` | "auto" |
+|`final_eval_merge_system_user_message` | False |
+|`k8s_storage_class_name` | standard |
+
+Using these parameters will allow a user to run the complete pipeline much quicker; in testing we have found this to take about 90 minutes.
+Additionally, we can point the `judge-server` and `teacher-server` to the same Mistral model, which only uses 1 GPU, and the PyTorchJob configuration
+specified here also only uses 2 training nodes of 1 GPU, so a total of 3 GPUs are required, rather than the 8-9 GPUs required for the full pipeline.
+With that said, the output model quality is likely very poor, and these should only be use for testing purposes.
 
 [RBAC configuration]: https://github.com/opendatahub-io/ilab-on-ocp/tree/main/standalone#rbac-requirements-when-running-in-a-kubernetes-job
