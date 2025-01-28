@@ -46,51 +46,27 @@ Before running the training and evaluation steps we must complete the following 
 
 ### Prepare data and push to object store
 
-Create a tarball with the [granite-7b-starter] model and [taxonomy tree] and push them to your object store.
-
-```bash
-$ mkdir -p s3-data/{model,taxonomy}
-```
+You will need a base model to train the ilab pipeline on, so to begin, upload the [granite-7b-starter] model to your object store.
 
 Download ilab model repository in s3-data model directory
 ```bash
 # You can also use Oras or Skopeo cli tools to download the model
 # If using other tools besides ilab, ensure that filenames are mapped
 # appropriately
+$ mkdir s3-data/
 $ ilab model download --repository docker://registry.redhat.io/rhelai1/granite-7b-starter --release 1.2
-$ cp -r <path-to-model-downloaded-dir>/rhelai1/granite-7b-starter/* s3-data/model
+$ cp -r <path-to-model-downloaded-dir>/rhelai1/granite-7b-starter s3-data/granite-7b-starter
 ```
 
-Add your taxonomy tree to the `taxonomy` directory
+Upload the created tar archive to your object store:
+
 ```bash
-$ cd s3-data
-$ cp path/to/your/taxonomy/tree taxonomy
-```
-> [!NOTE]
-> Note: see https://github.com/instructlab/taxonomy.git for an example taxonomy tree
-
-Generate tar archive
-```bash
-$ cd s3-data
-$ tar -czvf rhelai.tar.gz *
-```
-
-Upload the created tar archive to your object store.
-
-The `standalone.py` script will do a simple validation check on the directory structure, here is a sample of what
-the script expects:
-
-```text
-model/config.json
-model/tokenizer.json
-model/tokenizer_config.json
-model/*.safetensors
-taxonomy/knowledge
-taxonomy/foundational_skills
+# Default cache location for ilab model download is ~/.cache/instructlab/models
+# The model should be copied in such a way that the *.safetensors are found in s3://your-bucket-name/teach-model/*.safetensors
+s3cmd sync s3-data/granite-7b-starter s3://<your-bucket-name>/granite-7b-starter
 ```
 
 [granite-7b-starter]: https://catalog.redhat.com/software/containers/rhelai1/granite-7b-starter/667ebf10abaa082bcf96ea6a
-[taxonomy tree]: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_ai/1.2/html/creating_a_custom_llm_using_rhel_ai/customize_taxonomy_tree
 
 ### Setting up Judge & Teacher model
 
